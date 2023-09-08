@@ -1,0 +1,148 @@
+---
+title: 'DATA 607 Homework #1'
+author: "Kristin Lussi"
+date: "2023-09-05"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(dplyr.summarise.inform = FALSE)
+options(message=FALSE)
+suppressMessages(library(dplyr))
+```
+
+## Introduction
+The article I chose for this assignment is called "Where Police Have Killed Americans In 2015", written by Ben Casselman (https://fivethirtyeight.com/features/where-police-have-killed-americans-in-2015/)
+
+This article is about the release of Guardian's interactive database of Americans killed by police in 2015. The data was retrieved from a combination of media coverage, reader submissions, and open-source information. The Guardian then verified the incidents with their own reporting processes. 
+
+## Analysis
+In this section, I do some data wrangling.
+```{r}
+library(readr)
+
+# retrieve the csv file from GitHub
+urlfile = "https://raw.githubusercontent.com/fivethirtyeight/data/master/police-killings/police_killings.csv"
+
+policekillings <- read_csv(url(urlfile), show_col_types = FALSE)
+
+# subset the data into a smaller data frame
+policekillings <- subset(policekillings, select=c("name", "age", "gender", "raceethnicity", "state", "h_income", "pov"))
+
+# remove the rows that have "unknown" for age
+policekillings <- policekillings[policekillings$age != "Unknown", ]
+
+# remove the rows that have "-" for poverty
+policekillings <- policekillings[policekillings$pov != "-", ]
+
+# change columns from characters to numeric
+policekillings$pov <- as.numeric(policekillings$pov)
+policekillings$age <- as.integer(policekillings$age)
+
+# rename the columns
+colnames(policekillings) <- c("Name", "Age", "Gender", "Race", "State", "HouseholdIncome", "PovertyRate")
+
+policekillings <- data.frame(policekillings)
+
+# show a glimpse of the data frame
+head(policekillings)
+```
+
+In this next section, I use the above subset to determine the breakdown of killings for each poverty rate range, grouped by state. This is visualized in the table below. 
+```{r}
+library(gt)
+library(dplyr)
+## show a table with each state's count of killings for each poverty level range
+
+# Define the breakpoints for poverty rate categories
+breaks <- seq(0, 100, by = 10)
+
+# Label each category
+custom_labels <- c(
+  "0-10%", "10-20%", "20-30%", "30-40%", "40-50%",
+  "50-60%", "60-70%", "70-80%", "80-90%", "90-100%"
+)
+
+# Create a new column with poverty rate categories
+policekillings <- policekillings %>%
+  mutate(pov_category = cut(PovertyRate, breaks = breaks, labels = custom_labels))
+
+# Group the data by state and poverty rate category, calculate counts
+summary_data <- policekillings %>%
+  group_by(State, pov_category) %>%
+  summarise(count = n()) 
+
+# Create a gt table from the summarized data
+policekillings_tbl <- gt(summary_data)
+
+# Customize the table headers
+policekillings_tbl <- policekillings_tbl |>
+  tab_header(
+    title = md("**Killings by Poverty Rate in Each State**")
+  ) |>
+  cols_label(
+    State = "State", pov_category = md("**Poverty Rate Range**"), count = md("**Killings Count**")
+  )
+
+# Display the table
+policekillings_tbl
+
+```
+
+## Findings and Recommendations
+
+The article is very short and only contains a data table with a small subset of the data. If I wanted to extend the work in the article, I would provide a few graphs to help visualize the data to readers. 
+
+#### Recommendation 1
+
+I would provide a graph showing the distribution of killings based on poverty rate.
+```{r}
+library(ggplot2)
+
+colnames(policekillings) <- c("Name", "Age", "Gender", "Race", "State", "HouseholdIncome", "PovertyRate")
+
+# Create histogram for distribution of killings based on poverty rate
+ggplot() +
+  geom_histogram(data = policekillings, aes(x = PovertyRate), fill = "lightblue", color = "darkblue", binwidth = 5, alpha = 0.5) +
+  labs(
+    title = "Distribution of Killings Based on Poverty Rate",
+    x = "Poverty Rate (%)",
+    y = "Frequency"
+  ) +
+  scale_x_continuous(breaks = seq(0, 100, by = 10)) 
+```
+
+
+As you can see from the above graph, there is a higher distribution of killings in areas where the poverty rate is between 5-25%. This is interesting, because the article states **"One thing that’s clear from the data: Police killings tend to take place in neighborhoods that are poorer and blacker than the U.S. as a whole."** (*)
+
+In the article, the author based this statement off of the household income data. Let's see if the household income provides a different distribution.
+
+#### Recommendation 2
+
+I would provide a graph showing the distribution of killings based on household income. 
+```{r}
+colnames(policekillings) <- c("Name", "Age", "Gender", "Race", "State", "HouseholdIncome", "PovertyRate")
+
+# Create histogram for distribution based on household income 
+ggplot() +
+  geom_histogram(data = policekillings, aes(x = HouseholdIncome), fill = "lightgreen", color = "darkgreen", binwidth = 10000, alpha = 0.5) +
+  labs(
+    title = "Distribution of Killings Based on Household Income",
+    x = "Household Income ($)",
+    y = "Frequency"
+  ) +
+  scale_x_continuous(breaks = seq(0, 140000, by = 15000)) 
+```
+
+
+As you can see from the above graph, there is a higher distribution of killings in areas where the household income is lower (between $15,000 and $60,000). If you're looking at the data in this way, you could say the author was correct by their statement (*).
+
+## Sources
+
+FiveThirtyEight. Where Police Have Killed Americans in 2015. https://fivethirtyeight.com/features/where-police-have-killed-americans-in-2015/
+
+FiveThirtyEight. Police Killings Data 
+https://github.com/fivethirtyeight/data/blob/master/police-killings
